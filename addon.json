@@ -1,0 +1,14 @@
+{
+    "ignore": [
+        ".git/*",
+        "README.md",
+        "box-logo.jpeg"
+    ],
+    "logo": "box-logo.jpeg",
+    "tags": [
+        "build"
+    ],
+    "title": "Flatgrass BuildBoxes",
+    "type": "gamemode",
+    "workshopid": 437874533
+}
