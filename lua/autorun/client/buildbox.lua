@@ -52,7 +52,6 @@ function createBuildBox(ply, size, minPos, color)
 				
 				if owner and not v:IsPlayer() and not v:GetParent():IsPlayer() and v:GetModel() and v:GetClass() != "env_spritetrail" then
 					if not table.HasValue(box.AllowedPlayers, owner)  then
-						print("Model: ", v:GetModel(), " Class: ", v:GetClass(), " Owner: ", v:CPPIGetOwner())
 						v:Remove()
 					end
 				end
@@ -187,25 +186,6 @@ function canMoveVehicle(ply, vech, moveData)
 	return false
 end
 
-function canFireBullets(ent, data)
-	
-	Trace = util.QuickTrace(data.Src, data.Dir, ent)
-	pos = Trace.HitPos
-	
-	for k, v in pairs(buildBoxes) do
-		if pos:WithinAABox(v.Min, v.Max) then
-			print("InBox")
-			if not table.HasValue(v.AllowedPlayers, ent:CPPIGetOwner()) then
-				print("NoShoot")
-				return false
-			end
-		end
-	end
-	
-	
-	return true
-end
-
 function playerDisconnected(ply)
 	removeBuildBox(ply)
 	syncFromServer()
@@ -261,6 +241,33 @@ function playerSay(ply, text, team)
 	end
 
 	return text
+end
+
+function canDamage(target, dmgInfo)
+	
+	for k, v in pairs(buildBoxes) do
+
+		if v.IsInBox(target:GetPos()) then
+			attacker = dmgInfo:GetAttacker()
+
+			if attacker:IsPlayer() then
+				if not table.HasValue(v.AllowedPlayers, attacker) then
+					return true
+				end
+			else
+				attacker = attacker:CPPIGetOwner()
+
+				if attacker then
+					if attacker:IsPlayer() then
+						if not table.HasValue(v.AllowedPlayers, attacker) then
+							return true
+						end
+					end
+				end
+			end
+		end
+
+	end
 end
 
 function playerSpawnSendHints(ply)
@@ -385,7 +392,7 @@ function allowPlayerToBox(ply, plyToAdd)
 
 	if index and plyToAdd then
 		if not table.HasValue(buildBoxes[index].AllowedPlayers, plyToAdd) then
-			ply:ChatPrint("Added: ", plyToAdd:Name())
+			ply:ChatPrint("Added: " .. plyToAdd:Name())
 			table.insert(buildBoxes[index].AllowedPlayers, plyToAdd)
 		end
 	elseif index then
@@ -409,7 +416,7 @@ function removePlayerFromBox(ply, plyToRemove)
 				if buildBoxes[index].IsInBox(plyToRemove:GetPos()) then
 					plyToRemove:Kill()
 				end
-				ply:ChatPrint("Removed: ", table.remove(buildBoxes[index].AllowedPlayers, i):Name())
+				ply:ChatPrint("Removed: " .. table.remove(buildBoxes[index].AllowedPlayers, i):Name())
 			end
 
 			i = i + 1
@@ -425,7 +432,13 @@ boxIndex = 1
 
 for var = 0, 7, 1 do
 	
-	local minPos1 = addVec(startPos1, mulVec(Vector(3000, 0, 0), var))
+	doAdd = 0
+	
+	if var > 0 then
+		doAdd = 1
+	end
+	
+	local minPos1 = addVec(startPos1, Vector(3000 * var, 0, 0))
 	local minPos2 = addVec(startPos2, Vector(3000 * var, 0, 0))
 
 	
@@ -491,8 +504,8 @@ hook.Add("PlayerSpawnVehicle", "CanSpawnVehicle", canSpawn)
 hook.Add("CanTool", "CanTool", canSpawn)
 hook.Add("Move", "CanMove", canMove)
 hook.Add("VehicleMove", "CanMoveVehicle", canMoveVehicle)
-hook.Add("EntityFireBullets", "CanFireBullets", canFireBullets)
 hook.Add("PlayerDisconnected", "RemoveBuildBoxOnDisconnect", playerDisconnected)
 hook.Add("PlayerSay", "ChatCommands", playerSay)
 hook.Add("PlayerSpawn", "SendHints", playerSpawnSendHints)
 hook.Add("PlayerSpawn", "SpawnInBox", playerSpawnInBox)
+hook.Add("EntityTakeDamage", "CanDamage", canDamage)
