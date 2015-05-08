@@ -457,6 +457,19 @@ if SERVER then
 			v.CheckEntities()
 		end
 	end)
+
+	timer.Create("CheckPlayers", 1, 0, function()
+		for k, v in pairs(player.GetAll()) do
+			if v:Alive() then
+				for kb, vb in pairs(buildBoxes) do
+					if vb.IsInBox(v:GetPos()) and not table.HasValue(vb.AllowedPlayers, v) then
+						v:Kill()
+						break
+					end
+				end
+			end
+		end
+	end)
 	
 	util.AddNetworkString("syncTables")
 	
