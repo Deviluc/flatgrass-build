@@ -88,12 +88,8 @@ function drawAllBoxes()
 	if CLIENT then
 
 		ply = LocalPlayer()
-		
-		local trace = LocalPlayer():GetEyeTrace()
-		local angle = trace.HitNormal:Angle()
 
-		//cam.Start({angles = ply:GetRenderAngles(), origin = ply:GetRenderOrigin(), type = "3D"})
-		cam.Start3D(ply:EyePos(), EyeAngles())
+		cam.Start3D(pos, EyeAngles())
 
 		for k, v in pairs(buildBoxes) do
 			color = Color(200, 0, 0, 255)
@@ -111,6 +107,7 @@ function drawAllBoxes()
 	
 	return false
 end
+
 
 function canSpawn(ply)
 	local eyeTrace = ply:GetEyeTrace()
@@ -152,33 +149,6 @@ function canMove(ply, moveData)
 			
 			moveData:SetOrigin(ply:GetPos())
 			moveData:SetVelocity(mulVec(moveData:GetVelocity(), -2))
-			return true
-		end
-	end
-	
-	return false
-end
-
-function canMoveVehicle(ply, vech, moveData)
-	local speed = 0.0005 * FrameTime()
-	local nextPos = addVec(vech:GetPos(), mulVec(moveData:GetVelocity(), speed))
-	
-	for k, v in pairs(buildBoxes) do
-		if nextPos:WithinAABox(v.Min, v.Max) then
-			for k, v in pairs(v.AllowedPlayers) do
-				if v == ply then
-					return false
-				end
-			end
-			
-			if SERVER then
-				ply:Kill()
-			end
-			
-			vech:Remove()
-			
-			moveData:SetOrigin(subVec(moveData:GetOrigin(), moveData:GetVelocity()))
-			moveData:SetVelocity(mulVec(moveData:GetVelocity(), -1))
 			return true
 		end
 	end
@@ -516,7 +486,6 @@ hook.Add("PlayerSpawnSWEP", "CanSpawnSWEAP", canSpawn)
 hook.Add("PlayerSpawnVehicle", "CanSpawnVehicle", canSpawn)
 hook.Add("CanTool", "CanTool", canSpawn)
 hook.Add("Move", "CanMove", canMove)
-hook.Add("VehicleMove", "CanMoveVehicle", canMoveVehicle)
 hook.Add("PlayerDisconnected", "RemoveBuildBoxOnDisconnect", playerDisconnected)
 hook.Add("PlayerSay", "ChatCommands", playerSay)
 hook.Add("PlayerSpawn", "SendHints", playerSpawnSendHints)
