@@ -1,6 +1,7 @@
 buildBoxes = {}
-startPos1 = Vector(-15000,-15000, -12810)
-startPos2 = Vector(-15000, 12000, -12810)
+startPos1 = Vector(-15000,-15000, -12800)
+startPos2 = Vector(-15000, 12000, -12800)
+
 
 function mulVec(vec, num)
 	return Vector(vec.x * num, vec.y *num, vec.z * num)
@@ -81,7 +82,22 @@ function createBuildBox(ply, size, minPos, color)
 		end
 	end
 	
+	function box.RefreshPos()
+		box.Pos = subVec(box.Max, box.Min)
+	end
+	
 	return box
+end
+
+function getBoxes() 
+	return buildBoxes
+end
+
+function setBoxes(boxes)
+	if boxes then
+		buildBoxes = boxes
+		syncFromClient()	
+	end
 end
 
 function drawAllBoxes()
@@ -98,7 +114,9 @@ function drawAllBoxes()
 				color = Color(0, 200, 0, 255)
 			end
 
-			render.DrawWireframeBox(v.Pos, Angle(0, 0, 0), mulVec(v.Size, -0.5), mulVec(v.Size, 0.5), color)
+			render.DepthRange(0.0, 1.0)
+
+			render.DrawWireframeBox(v.Pos, Angle(0, 0, 0), subVec(v.Min, v.Pos), subVec(v.Max, v.Pos), color, true)
 		end	
 
 		cam.End3D()
@@ -167,19 +185,19 @@ function playerSay(ply, text, team)
 		
 		args = string.Explode(" ", text, false)
 
-		if text == "!getBox" then
+		if string.lower(text) == "!getbox" then
 			giveBuildBox(ply)
 			syncFromServer()
 			return false
 		end
 
-		if text == "!removeBox" then
+		if string.lower(text) == "!removebox" then
 			removeBuildBox(ply)
 			syncFromServer()
 			return false
 		end
 
-		if args[1] == "!addPlayer" then
+		if string.lower(args[1]) == "!addplayer" then
 			plyToAdd = findPlayerByName(args[2])
 
 			allowPlayerToBox(ply, plyToAdd)
@@ -187,7 +205,7 @@ function playerSay(ply, text, team)
 			return false
 		end
 
-		if args[1] == "!removePlayer" then
+		if string.lower(args[1]) == "!removeplayer" then
 			plyToRemove = findPlayerByName(args[2])
 
 			removePlayerFromBox(ply, plyToRemove)
@@ -195,7 +213,7 @@ function playerSay(ply, text, team)
 			return false
 		end
 		
-		if args[1] == "!spawnInBox" then
+		if string.lower(args[1]) == "!spawninbox" then
 			if ply:GetNWBool("SpawnInBox", false) then
 				ply:SetNWBool("SpawnInBox", false)
 				ply:ChatPrint("You will no longer spawn in your buildbox")
@@ -264,10 +282,13 @@ end
 function syncFromServer()
 	
 	for k, v in pairs (buildBoxes) do
+		print("k", k)
 		net.Start("syncTables")
 		net.WriteInt(k, 32)
 		net.WriteEntity(v.Player)
 		net.WriteTable(v.AllowedPlayers)
+		net.WriteVector(v.Min)
+		net.WriteVector(v.Max)
 		net.Broadcast()
 	end
 end
@@ -278,6 +299,8 @@ function syncFromClient()
 		net.WriteInt(k, 32)
 		net.WriteEntity(v.Player)
 		net.WriteTable(v.AllowedPlayers)
+		net.WriteVector(v.Min)
+		net.WriteVector(v.Max)
 		net.SendToServer()
 	end
 end
@@ -448,11 +471,17 @@ if SERVER then
 		
 		buildBoxes[boxIndex].Player = net.ReadEntity()
 		buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
+		buildBoxes[boxIndex].Min = net.ReadVector()
+		buildBoxes[boxIndex].Max = net.ReadVector()
+		
+		buildBoxes[boxIndex].RefreshPos()
 		
 		net.Start("syncTables")
-		net.ReadInt(32)
+		net.WriteInt(boxIndex, 32)
 		net.WriteEntity(buildBoxes[boxIndex].Player)
 		net.WriteTable(buildBoxes[boxIndex].AllowedPlayers)
+		net.WriteVector(buildBoxes[boxIndex].Min)
+		net.WriteVector(buildBoxes[boxIndex].Max)
 		net.Broadcast()
 	end)
 end
@@ -461,8 +490,14 @@ if CLIENT then
 	net.Receive("syncTables", function (length)
 		boxIndex = net.ReadInt(32)
 		
+		print("Count: " ..#buildBoxes, " Index: ", boxIndex)
+		
 		buildBoxes[boxIndex].Player = net.ReadEntity()
 		buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
+		buildBoxes[boxIndex].Min = net.ReadVector()
+		buildBoxes[boxIndex].Max = net.ReadVector()
+		
+		buildBoxes[boxIndex].RefreshPos()
 		
 	end)
 	
@@ -474,6 +509,9 @@ if CLIENT then
 	language.Add("Hint_SpawnInBox", "If you wish to spawn in your box, you can toggle this by writing \"!spawnInBox\" in chat")
 	
 end
+
+hook.Add("BuildBox", "GetBoxes", getBoxes)
+hook.Add("BuildBox", "SetBoxes", setBoxes)
 
 hook.Add("PostDrawOpaqueRenderables", "RenderBox", drawAllBoxes)
 hook.Add("PlayerSpawnEffect", "CanSpawnEffect", canSpawn)
