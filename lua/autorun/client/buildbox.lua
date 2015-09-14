@@ -30,6 +30,9 @@ function findPlayerByName(name)
 	return nil
 end
 
+
+
+
 function createBuildBox(ply, size, minPos, color)
 	local box = {}
 	
@@ -83,10 +86,23 @@ function createBuildBox(ply, size, minPos, color)
 	end
 	
 	function box.RefreshPos()
-		box.Pos = subVec(box.Max, box.Min)
+		box.Pos = addVec(box.Min, mulVec(subVec(box.Max, box.Min), 0.5))
+		box.Size = subVec(box.Max, box.Min)
+	end
+
+	function box.ToString()
+		return box.Size.x .. "," .. box.Size.y .. "," .. box.Size.z .. "|" .. box.Min.x .. "," .. box.Min.y .. "," .. box.Min.z .. "|#"
 	end
 	
 	return box
+end
+
+local function printBox(box)
+	print(box )
+	print("Min", box.Min)
+	print("Max", box.Max)
+	print("Player", box.Player)
+	print("Pos", box.Pos)
 end
 
 function getBoxes() 
@@ -96,6 +112,11 @@ end
 function setBoxes(boxes)
 	if boxes then
 		buildBoxes = boxes
+		
+		for k, v in pairs(buildBoxes) do
+			printBox(v)
+		end
+		
 		syncFromClient()	
 	end
 end
@@ -110,9 +131,13 @@ function drawAllBoxes()
 		for k, v in pairs(buildBoxes) do
 			color = Color(200, 0, 0, 255)
 
-			if v.Player == LocalPlayer() then
-				color = Color(0, 200, 0, 255)
-			end
+				if v.Player == LocalPlayer() then
+					color = Color(0, 200, 0, 255)
+				elseif v.AllowedPlayers then
+					if table.HasValue(v.AllowedPlayers, ply) then
+						color = Color(0, 200, 0, 255)
+					end
+				end
 
 			render.DepthRange(0.0, 1.0)
 
@@ -124,6 +149,210 @@ function drawAllBoxes()
 
 	
 	return false
+end
+
+function showChangelogMenu()
+	//TODO Create a menu showing the changelog!
+end
+
+function createBuildBoxMenu()
+
+	if CLIENT then
+		if not LocalPlayer():IsAdmin() then
+			return false
+		end
+
+		local Frame = vgui.Create( "DFrame" )
+
+		local Size = {x = 600, y = 375}
+		local Pos = {x = (ScrW() * 0.5) - (Size.x * 0.5), y = (ScrH() * 0.5) - (Size.y * 0.5)}
+		local LineStart = {x = 5, y = 30}
+		local LineWidth = 25
+		local LineCounter = 0
+
+
+		Frame:SetSize(Size.x, Size.y)
+		Frame:SetPos(Pos.x, Pos.y)
+		Frame:SetTitle("BuildBox-Menu")
+		Frame:MakePopup()
+
+		local BoxList = vgui.Create( "DListView" , Frame)
+		BoxList:SetPos(LineStart.x, LineStart.y + LineCounter * LineWidth)
+		BoxList:SetSize(Size.x - (LineStart.x * 2), LineWidth * 12)
+		LineCounter = 12.5
+
+		BoxList:SetMultiSelect( false )
+		BoxList:AddColumn( "ID" )
+		BoxList:AddColumn( "X_min" )
+		BoxList:AddColumn( "Y_min" )
+		BoxList:AddColumn( "Z_min" )
+		BoxList:AddColumn( "X_max" )
+		BoxList:AddColumn( "Y_max" )
+		BoxList:AddColumn( "Z_max" )
+
+
+		local function refreshList()
+			
+			BoxList:Clear()
+			
+			for I = 1, #buildBoxes, 1 do
+				local box = buildBoxes[I]
+				BoxList:AddLine(I, box.Min.x, box.Min.y, box.Min.z, box.Max.x, box.Max.y, box.Max.z)
+			end
+		end
+
+		local function createBoxMenu(ID)
+
+			local Box = buildBoxes[ID]
+
+			if ID > #buildBoxes then
+				Box = createBuildBox(nil, Vector(0, 0, 0), Vector(0, 0, 0))
+			end
+						
+
+			local BoxFrame = vgui.Create( "DFrame" )
+			local Pos = {x = (ScrW() * 0.5) - (Size.x * 0.5), y = (ScrH() * 0.5) - (Size.y * 0.5)}
+			local Size = {x = 200, y = 260}
+			local LineStart = {x = 5, y = 30}
+			local LineWidth = 25
+			local LineCounter = 0
+			
+			BoxFrame:SetSize(Size.x, Size.y)
+			BoxFrame:SetPos(Pos.x, Pos.y)
+			BoxFrame:SetTitle("Box_" .. ID)
+			BoxFrame:MakePopup()
+			
+			local function createLine(text, number, isLeft, allowInput, isNumber)
+				
+				
+				local XStart = LineStart.x
+				
+				if !isLeft then
+					XStart = LineStart.x + (Size.x / 2)
+				end
+				
+				local LineLabel = vgui.Create("DLabel", BoxFrame)
+				LineLabel:SetPos(XStart, LineStart.y + (LineCounter * LineWidth))
+				LineLabel:SetSize(Size.x / 2.1, LineWidth)
+				LineLabel:SetText(text)
+				
+				local LineNumber = vgui.Create("DTextEntry", BoxFrame)
+				LineNumber:SetPos(XStart + (Size.x / 2.1), LineStart.y + (LineCounter * LineWidth))
+				LineNumber:SetSize(Size.x / 2.1, LineWidth)
+				LineNumber:SetText(number)
+				LineNumber:SetEditable(allowInput)
+				
+				LineNumber:SetNumeric(isNumber)
+				
+				LineCounter = LineCounter + 1
+
+				return {Label = LineLabel, Input = LineNumber}
+				
+			end
+			
+			local function readTextEntry(textEntry)
+				local number = textEntry:GetFloat()
+				
+				if not number then
+					return 0
+				end
+				
+				return number
+				
+			end
+			
+			
+			local idField = createLine("ID", ID, true, false, true).Input
+			local xMinField = createLine("X-Minimum", Box.Min.x, true, true, true).Input
+			local yMinField = createLine("Y-Minimum", Box.Min.y, true, true, true).Input
+			local zMinField = createLine("Z-Minimum", Box.Min.z, true, true, true).Input
+			local xMaxField = createLine("X-Maximum", Box.Max.x, true, true, true).Input
+			local yMaxField = createLine("Y-Maximum", Box.Max.y, true, true, true).Input
+			local zMaxField = createLine("Z-Maximum", Box.Max.z, true, true, true).Input
+			
+			if IsValid(Box.Player) then
+				createLine("Player", Box.Player:Name(), true, false, false)
+			end
+			
+			LineCounter = LineCounter + 1
+			
+			local saveButton = vgui.Create("DButton", BoxFrame)
+			saveButton:SetText("SAVE")
+			saveButton:SetSize(Size.x / 2.1, LineWidth)
+			saveButton:SetPos(LineStart.x, LineStart.y + (LineCounter * LineWidth))
+			saveButton.DoClick = function()
+				
+				Box.Min = Vector(readTextEntry(xMinField), readTextEntry(yMinField), readTextEntry(zMinField))
+				Box.Max = Vector(readTextEntry(xMaxField), readTextEntry(yMaxField), readTextEntry(zMaxField))
+				
+				//PrintTable(Box)
+				//print("Table: " .. Box.Min.x)
+				buildBoxes[ID] = Box
+				BoxFrame:Close()
+				syncFromClient()
+				timer.Create("refreshList", 0.8, 1, refreshList)
+			end
+			
+			local cancelButton = vgui.Create("DButton", BoxFrame)
+			cancelButton:SetText("CANCEL")
+			cancelButton:SetSize(Size.x / 2.1, LineWidth)
+			cancelButton:SetPos(LineStart.x + (Size.x / 2.1), LineStart.y + (LineCounter * LineWidth))
+			cancelButton.DoClick = function()
+				BoxFrame:Close()
+				refreshList()
+			end
+			
+			LineCounter = LineCounter + 1
+			
+			
+		end
+
+
+		function BoxList:DoDoubleClick(lineID, line)
+			createBoxMenu(lineID)
+		end
+
+		local addBoxButton = vgui.Create("DButton", Frame)
+		addBoxButton:SetText("Add Box")
+		addBoxButton:SetSize(75, LineWidth)
+		addBoxButton:SetPos(LineStart.x, LineStart.y + LineCounter * LineWidth)
+		addBoxButton.DoClick = function()
+			createBoxMenu(#buildBoxes + 1)
+		end
+
+		local removeBoxButton = vgui.Create("DButton", Frame)
+		removeBoxButton:SetText("Remove Box")
+		removeBoxButton:SetSize(75, LineWidth)
+		removeBoxButton:SetPos(LineStart.x + 80, LineStart.y + LineCounter * LineWidth)
+		removeBoxButton.DoClick = function()
+			deleteBoxFromClient(BoxList:GetSelectedLine())
+			timer.Create("refreshList", 0.8, 1, refreshList)
+		end
+		
+		local loadMapDefaultsButton = vgui.Create("DButton", Frame)
+		loadMapDefaultsButton:SetText("Load Map Default")
+		loadMapDefaultsButton:SetSize(125, LineWidth)
+		loadMapDefaultsButton:SetPos(LineStart.x + 160, LineStart.y + LineCounter * LineWidth)
+		loadMapDefaultsButton.DoClick = function()
+			net.Start("loadDefault")
+			net.SendToServer()
+			timer.Create("refreshList", 0.8, 1, refreshList)
+		end
+		
+		local saveMapDefaultsButton = vgui.Create("DButton", Frame)
+		saveMapDefaultsButton:SetText("Save as Map Default")
+		saveMapDefaultsButton:SetSize(125, LineWidth)
+		saveMapDefaultsButton:SetPos(LineStart.x + 290, LineStart.y + LineCounter * LineWidth)
+		saveMapDefaultsButton.DoClick = function()
+			net.Start("saveDefault")
+			net.SendToServer()
+			timer.Create("refreshList", 0.8, 1, refreshList)
+		end
+
+
+
+		refreshList()
+	end
 end
 
 
@@ -225,6 +454,17 @@ function playerSay(ply, text, team)
 			return false
 		end
 
+		if string.lower(args[1]) == "!boxmenu" then
+			if ply:IsAdmin() then
+				ply:ConCommand("createBuildBoxMenu")
+				print(ply, "opened the box-menu!")
+			else
+				print(ply, "is not admin!")
+			end
+			
+			return false
+		end
+
 
 	end
 
@@ -280,27 +520,98 @@ function playerSpawnInBox(ply)
 end
 
 function syncFromServer()
-	
-	for k, v in pairs (buildBoxes) do
-		print("k", k)
-		net.Start("syncTables")
+	net.Start("serverSync")
+	net.WriteInt(#buildBoxes, 32)
+
+	for k, v in pairs(buildBoxes) do
 		net.WriteInt(k, 32)
 		net.WriteEntity(v.Player)
 		net.WriteTable(v.AllowedPlayers)
 		net.WriteVector(v.Min)
 		net.WriteVector(v.Max)
-		net.Broadcast()
 	end
+
+	net.Broadcast()
+end
+
+function clientSyncRequest()
+	net.Start("clientSyncRequest")
+	net.SendToServer()
 end
 
 function syncFromClient()
-	for k, v in pairs (buildBoxes) do
-		net.Start("syncTables")
+	net.Start("clientSync")
+	net.WriteInt(#buildBoxes, 32)
+
+	for k, v in pairs(buildBoxes) do
 		net.WriteInt(k, 32)
 		net.WriteEntity(v.Player)
 		net.WriteTable(v.AllowedPlayers)
 		net.WriteVector(v.Min)
 		net.WriteVector(v.Max)
+	end
+
+	net.SendToServer()
+end
+
+function saveBuildBoxMapDefault()
+	if SERVER then
+		if not file.IsDir("buildboxes", "DATA") then
+			file.CreateDir("buildboxes")
+		end
+
+		local mapFileString = ""
+
+		for k, v in pairs(buildBoxes) do
+			mapFileString = mapFileString .. v.ToString()
+		end
+
+		file.Write("buildboxes/" .. game.GetMap() .. ".txt", mapFileString)
+		
+		//print("New map-default saved: ", mapFileString)
+	end
+end
+
+function loadBuildBoxMapDefault()
+	if SERVER then
+		
+		
+		local mapFile = "buildboxes/" .. game.GetMap() .. ".txt"
+
+		if file.Exists(mapFile, "DATA") then
+			local mapFileString = file.Read(mapFile, "DATA")
+			local buildBoxStrings = string.Explode("#", mapFileString)
+
+			buildBoxes = {}
+			
+			//print(mapFileString)
+			
+			for k, v in pairs(buildBoxStrings) do
+				if #string.Explode("|", v) == 3 then
+					boxValueStrings = string.Explode("|", v)
+					boxSizeStrings = string.Explode(",", boxValueStrings[1])
+					boxMinStrings = string.Explode(",", boxValueStrings[2])
+					index = (#buildBoxes + 1)
+					box = createBuildBox(nil, Vector(tonumber(boxSizeStrings[1], 10), tonumber(boxSizeStrings[2], 10), tonumber(boxSizeStrings[3], 10)), Vector(tonumber(boxMinStrings[1], 10), tonumber(boxMinStrings[2], 10), tonumber(boxMinStrings[3], 10)))
+					box.Player = nil
+					//PrintTable(box)
+					buildBoxes[index] = box
+				end
+			end
+
+			syncFromServer()
+			return true
+		else
+			print("error loading map defaults")
+			return false
+		end
+	end
+end
+
+function deleteBoxFromClient(id)
+	if CLIENT then
+		net.Start("deleteBox")
+		net.WriteInt(id, 32)
 		net.SendToServer()
 	end
 end
@@ -328,9 +639,18 @@ function giveBuildBox(ply)
 		emptyIndex = -1
 
 		for k, v in pairs(buildBoxes) do
+			
+			print("BOX" .. k .. ":")
+			print("Player", v.Player)
 
 			if not v.Player and emptyIndex == -1 then
 				emptyIndex = k
+			end
+			
+			if v.Player  and emptyIndex == -1 then
+				if v.Player == ents.GetByIndex(0) then
+					emtyIndex = k
+				end
 			end
 
 			if v.Player == ply then
@@ -421,28 +741,7 @@ function removePlayerFromBox(ply, plyToRemove)
 	end
 end
 
-boxIndex = 1
 
-for var = 0, 7, 1 do
-	
-	doAdd = 0
-	
-	if var > 0 then
-		doAdd = 1
-	end
-	
-	local minPos1 = addVec(startPos1, Vector(3000 * var, 0, 0))
-	local minPos2 = addVec(startPos2, Vector(3000 * var, 0, 0))
-
-	
-	buildBoxes[boxIndex] =  createBuildBox(nil, Vector(3000, 3000, 3000), minPos1)
-	boxIndex= boxIndex + 1
-	buildBoxes[boxIndex] =  createBuildBox(nil, Vector(3000, 3000, 3000), minPos2)
-	boxIndex= boxIndex + 1
-	
-end
-
-print("Boxes created...")
 
 if SERVER then
 	timer.Create("CheckBoxes", 0.2, 0, function()
@@ -465,40 +764,146 @@ if SERVER then
 	end)
 	
 	util.AddNetworkString("syncTables")
-	
-	net.Receive("syncTables", function(length, ply)
-		boxIndex = net.ReadInt(32)
-		
-		buildBoxes[boxIndex].Player = net.ReadEntity()
-		buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
-		buildBoxes[boxIndex].Min = net.ReadVector()
-		buildBoxes[boxIndex].Max = net.ReadVector()
-		
-		buildBoxes[boxIndex].RefreshPos()
-		
-		net.Start("syncTables")
-		net.WriteInt(boxIndex, 32)
-		net.WriteEntity(buildBoxes[boxIndex].Player)
-		net.WriteTable(buildBoxes[boxIndex].AllowedPlayers)
-		net.WriteVector(buildBoxes[boxIndex].Min)
-		net.WriteVector(buildBoxes[boxIndex].Max)
-		net.Broadcast()
+	util.AddNetworkString("loadDefault")
+	util.AddNetworkString("saveDefault")
+	util.AddNetworkString("serverSync")
+	util.AddNetworkString("clientSyncRequest")
+	util.AddNetworkString("clientSync")
+	util.AddNetworkString("deleteBox")
+
+	net.Receive("clientSyncRequest", function(length, ply)
+		syncFromServer()
 	end)
+	
+	net.Receive("clientSync", function(length, ply)
+		boxCount = net.ReadInt(32)
+
+		buildBoxes = {}
+
+		for var = 1, boxCount + 1, 1 do
+			boxIndex = net.ReadInt(32)
+			buildBoxes[boxIndex] = createBuildBox(nil, Vector(0, 0, 0), Vector(0, 0, 0))
+			buildBoxes[boxIndex].Player = net.ReadEntity()
+			buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
+			buildBoxes[boxIndex].Min = net.ReadVector()
+			buildBoxes[boxIndex].Max = net.ReadVector()
+
+			buildBoxes[boxIndex].RefreshPos()
+		end
+
+		syncFromServer()
+	end)
+
+	net.Receive("loadDefault", function(length, ply)
+		loadBuildBoxMapDefault()
+	end)
+
+	net.Receive("saveDefault", function(length, ply)
+		saveBuildBoxMapDefault()
+	end)
+
+	net.Receive("deleteBox", function(length, ply)
+		if ply:IsAdmin() then
+			boxIndex = net.ReadInt(32)
+			table.remove(buildBoxes, boxIndex)
+			
+			net.Start("deleteBox")
+			net.WriteInt(boxIndex, 32)
+			net.Broadcast()
+		else
+			print(ply:Nick() .. " tried to delete a box!")
+		end
+	end)
+
+	if game.GetMap() == "gm_flatgrass" and not loadBuildBoxMapDefault() then
+		boxIndex = 1
+	
+		for var = 0, 7, 1 do
+			
+			doAdd = 0
+			
+			if var > 0 then
+				doAdd = 1
+			end
+			
+			local minPos1 = addVec(startPos1, Vector(3000 * var, 0, 0))
+			local minPos2 = addVec(startPos2, Vector(3000 * var, 0, 0))
+	
+			
+			buildBoxes[boxIndex] =  createBuildBox(nil, Vector(3000, 3000, 3000), minPos1)
+			boxIndex= boxIndex + 1
+			buildBoxes[boxIndex] =  createBuildBox(nil, Vector(3000, 3000, 3000), minPos2)
+			boxIndex= boxIndex + 1
+			
+		end
+		
+		saveBuildBoxMapDefault()
+	elseif not game.GetMap() == "gm_flatgrass" then
+		loadBuildBoxMapDefault()
+	end
+
+	print("SERVER-INIT: DONE")
 end
 
 if CLIENT then
 	net.Receive("syncTables", function (length)
+		print("[DEPRECATED] - SyncTables")
 		boxIndex = net.ReadInt(32)
 		
-		print("Count: " ..#buildBoxes, " Index: ", boxIndex)
+		netPlayer = net.ReadEntity()
+		netAllowed = net.ReadTable()
+		netMin = net.ReadVector()
+		netMax = net.ReadVector()
 		
-		buildBoxes[boxIndex].Player = net.ReadEntity()
-		buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
-		buildBoxes[boxIndex].Min = net.ReadVector()
-		buildBoxes[boxIndex].Max = net.ReadVector()
+		
+		//print("Count: " ..#buildBoxes, " Index: ", boxIndex)
+		//print("Min", netMin, "Max", netMax)
+		//print("netPlayer", netPlayer, "netAllowed", netAllowed)
+		
+		buildBoxes[boxIndex] = createBuildBox(nil, Vector(0, 0, 0), Vector(0, 0, 0))
+		
+		
+		//print("ne")
+		
+		buildBoxes[boxIndex].Player = netPlayer
+		buildBoxes[boxIndex].AllowedPlayers = netAllowed
+		buildBoxes[boxIndex].Min = netMin
+		buildBoxes[boxIndex].Max = netMax
 		
 		buildBoxes[boxIndex].RefreshPos()
 		
+		//PrintTable(buildBoxes[boxIndex])
+		
+	end)
+
+	net.Receive("serverSync", function(length)
+		boxCount = net.ReadInt(32)
+
+		buildBoxes = {}
+
+		for var = 1, boxCount + 1, 1 do
+			boxIndex = net.ReadInt(32)
+			buildBoxes[boxIndex] = createBuildBox(nil, Vector(0, 0, 0), Vector(0, 0, 0))
+			buildBoxes[boxIndex].Player = net.ReadEntity()
+
+			
+
+			if not pcall(function()
+				buildBoxes[boxIndex].AllowedPlayers = net.ReadTable()
+			end) then
+				buildBoxes[boxIndex].AllowedPlayers = {}
+			end
+			
+			buildBoxes[boxIndex].Min = net.ReadVector()
+			buildBoxes[boxIndex].Max = net.ReadVector()
+
+			buildBoxes[boxIndex].RefreshPos()
+		end
+
+	end)
+
+	net.Receive("deleteBox", function(length)
+		table.remove(buildBoxes, net.ReadInt(32))
 	end)
 	
 	language.Add("Hint_BuildBox", "If you want to build in peace you can get a buildbox!")
@@ -508,7 +913,12 @@ if CLIENT then
 	language.Add("Hint_RemovePlayer", "To disallow other players to build in your box write \"!removePlayer [NAME]\" in chat")
 	language.Add("Hint_SpawnInBox", "If you wish to spawn in your box, you can toggle this by writing \"!spawnInBox\" in chat")
 	
+	clientSyncRequest()
+	
+	print("CLIENT-INIT: DONE")
 end
+
+concommand.Add("createBuildBoxMenu", createBuildBoxMenu)
 
 hook.Add("BuildBox", "GetBoxes", getBoxes)
 hook.Add("BuildBox", "SetBoxes", setBoxes)
