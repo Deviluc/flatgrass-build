@@ -995,10 +995,8 @@ hook.Add("PlayerSpawn", "SpawnInBox", playerSpawnInBox)
 hook.Add("EntityTakeDamage", "CanDamage", canDamage)
 
 hook.Add("PlayerInitialSpawn", "SetShowHelpAgain", function(ply) 
+	syncFromServer()
 	ply:ConCommand("showHelpAgain 1")
-	timer.Create("ShowHelp", 20, 1, function()
-		ply:ConCommand("buildBoxHelp")
-	end)
 end)
 
 hook.Add("PlayerSpawn", "ShowHelp", function(ply) ply:ConCommand("shouldShowHelp") end)
