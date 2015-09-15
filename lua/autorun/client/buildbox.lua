@@ -151,8 +151,41 @@ function drawAllBoxes()
 	return false
 end
 
-function showChangelogMenu()
-	//TODO Create a menu showing the changelog!
+function showHelpMenu()
+	if CLIENT then
+		local frame = vgui.Create( "DFrame" )
+		frame:SetSize( 780, 680 )
+		frame:SetTitle( "Buildbox Help" )
+		frame:SetVisible( true )
+		frame:SetDraggable( true )
+		frame:Center()
+
+		local checkbox = vgui.Create("DCheckBox", frame)
+		checkbox:SetPos(5, 640)
+		checkbox:SetValue(tonumber(LocalPlayer():GetPData("showHelpAgain")))
+
+		function checkbox:OnChange(state)
+			if state then
+				LocalPlayer():SetPData("showHelpAgain", "1")
+			else
+				LocalPlayer():SetPData("showHelpAgain", "0")
+			end
+		end
+
+		local checkboxLabel = vgui.Create("DLabel", frame)
+		checkboxLabel:SetPos(30, 640)
+		checkboxLabel:SetText("Show this menu again on next spawn in server")
+		checkboxLabel:SetSize(300, 25)
+
+		local html = vgui.Create( "HTML" , frame )
+		html:SetSize(770, 600)
+		html:SetPos(5, 30)
+		html:OpenURL("http://deviluc.bplaced.net/gmod/helpmenu.html")
+		frame:SetBackgroundBlur(true)
+		frame:SetSizable(true)
+		frame:MakePopup()
+
+	end
 end
 
 function createBuildBoxMenu()
@@ -457,11 +490,16 @@ function playerSay(ply, text, team)
 		if string.lower(args[1]) == "!boxmenu" then
 			if ply:IsAdmin() then
 				ply:ConCommand("createBuildBoxMenu")
-				print(ply, "opened the box-menu!")
 			else
 				print(ply, "is not admin!")
 			end
 			
+			return false
+		end
+
+		if string.lower(args[1]) == "!boxhelp" then
+			ply:ConCommand("buildBoxHelp")
+
 			return false
 		end
 
@@ -741,7 +779,20 @@ function removePlayerFromBox(ply, plyToRemove)
 	end
 end
 
+function setShowHelpAgain(ply, cmd, args)
+	if CLIENT then
+		ply:SetPData("showHelpAgain", args[1])
+		print("showHelpAgain set to " .. args[1])
+	end
+end
 
+function shouldShowHelp(ply)
+	if CLIENT then
+		if ply:GetPData("showHelpAgain") == "1" then
+			showHelpMenu()
+		end
+	end
+end
 
 if SERVER then
 	timer.Create("CheckBoxes", 0.2, 0, function()
@@ -919,6 +970,9 @@ if CLIENT then
 end
 
 concommand.Add("createBuildBoxMenu", createBuildBoxMenu)
+concommand.Add("buildBoxHelp", showHelpMenu)
+concommand.Add("showHelpAgain", setShowHelpAgain)
+concommand.Add("shouldShowHelp", shouldShowHelp)
 
 hook.Add("BuildBox", "GetBoxes", getBoxes)
 hook.Add("BuildBox", "SetBoxes", setBoxes)
@@ -939,3 +993,12 @@ hook.Add("PlayerSay", "ChatCommands", playerSay)
 hook.Add("PlayerSpawn", "SendHints", playerSpawnSendHints)
 hook.Add("PlayerSpawn", "SpawnInBox", playerSpawnInBox)
 hook.Add("EntityTakeDamage", "CanDamage", canDamage)
+
+hook.Add("PlayerInitialSpawn", "SetShowHelpAgain", function(ply) 
+	ply:ConCommand("showHelpAgain 1")
+	timer.Create("ShowHelp", 20, 1, function()
+		ply:ConCommand("buildBoxHelp")
+	end)
+end)
+
+hook.Add("PlayerSpawn", "ShowHelp", function(ply) ply:ConCommand("shouldShowHelp") end)
